@@ -3,11 +3,11 @@ Pokémon GO RSS Notifier
 An AWS Lambda–based RSS monitoring service that checks for new Pokémon GO blog posts and sends email notifications when updates are detected.
 
 This project uses:
-> AWS Lambda (Python 3.12)
-Amazon SES (email notifications)
-AWS Systems Manager Parameter Store (SSM) (state tracking)
-Amazon EventBridge (scheduled automation)
-Feedparser (RSS parsing)
+- AWS Lambda (Python 3.12)
+- Amazon SES (email notifications)
+- AWS Systems Manager Parameter Store (SSM) (state tracking)
+- Amazon EventBridge (scheduled automation)
+- Feedparser (RSS parsing)
 
 Overview
 
