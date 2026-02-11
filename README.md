@@ -1,101 +1,27 @@
-Pokémon GO RSS Email Notifier (Serverless)
+Pokémon GO RSS Notifier
 
-A fully serverless notification system that monitors Pokémon GO news and sends email updates automatically.
+An AWS Lambda–based RSS monitoring service that checks for new Pokémon GO blog posts and sends email notifications when updates are detected.
+
+This project uses:
+- AWS Lambda (Python 3.12)
+- Amazon SES (email notifications)
+- AWS Systems Manager Parameter Store (SSM) (state tracking)
+- Amazon EventBridge (scheduled automation)
+- Feedparser (RSS parsing)
+
+Overview
+
+This service periodically checks an RSS feed for new entries. 
+It tracks the number of previously seen posts using SSM Parameter Store.
+If the feed contains new entries since the last check, an email notification is sent via SES.
+The stored counter is then updated, and execution logs are written to CloudWatch.
+The function is designed to run automatically on a schedule (e.g., every 15 minutes).
 
 Architecture
 
-EventBridge (scheduled trigger)
-→ AWS Lambda (Python 3.12)
-→ RSS Feed (pokemonblog.com)
-→ AWS SES (email delivery)
-→ AWS SSM Parameter Store (state tracking)
-
-Features
-
-Serverless architecture (no servers to manage)
-
-Automatic scheduled execution
-
-State persistence using AWS Parameter Store
-
-Duplicate prevention using last_post_id tracking
-
-Fully automated email notifications
-
-Free-tier compatible
-
-Technologies Used
-
-AWS Lambda
-
-Amazon EventBridge
-
-Amazon SES
-
-AWS Systems Manager (Parameter Store)
-
-Python 3.12
-
-feedparser
-
-How It Works
-
-EventBridge triggers Lambda every 15 minutes.
-
-Lambda fetches the RSS feed.
-
-It compares each post against the stored last_post_id.
-
-If a new post is found:
-
-Sends an email via SES
-
-Updates last_post_id in SSM
-
-Prevents duplicate notifications automatically.
-
-Environment Variables
-RSS_URL
-EMAIL_FROM
-EMAIL_TO
-SSM_PARAM
-
-IAM Permissions Required
-
-ssm:GetParameter
-
-ssm:PutParameter
-
-ses:SendEmail
-
-Deployment Steps
-
-Install dependencies:
-
-pip install -r requirements.txt -t .
-
-
-Zip contents:
-
-zip -r deployment_package.zip .
-
-
-Upload to AWS Lambda.
-
-Configure environment variables.
-
-Create EventBridge rule:
-
-rate(15 minutes)
-
-Future Improvements
-
-Discord webhook support
-
-SMS notifications via SNS
-
-Multiple feed monitoring
-
-HTML-formatted email
-
-Dockerized Lambda deployment
+EventBridge (cron schedule)
+→ Lambda function
+→ Fetch RSS feed
+→ Compare entry count with SSM parameter
+→ If new posts detected → Send email via SES
+→ Update SSM parameter
