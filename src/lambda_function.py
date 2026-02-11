@@ -1,68 +1,78 @@
+import os
 import boto3
 import feedparser
-import os
+from botocore.exceptions import ClientError
 
-ses = boto3.client("ses")
-ssm = boto3.client("ssm")
+# Environment variables
+RSS_URL = os.environ['RSS_URL']
+EMAIL_FROM = os.environ['EMAIL_FROM']
+EMAIL_TO = os.environ['EMAIL_TO']
+SSM_PARAM = os.environ['SSM_PARAM']
 
-RSS_URL = os.environ["RSS_URL"]
-EMAIL_FROM = os.environ["EMAIL_FROM"]
-EMAIL_TO = os.environ["EMAIL_TO"]
-SSM_PARAM = os.environ["SSM_PARAM"]
+# AWS clients
+ssm = boto3.client('ssm')
+ses = boto3.client('ses')
 
-
+# Helper functions
 def get_last_post_id():
-    return ssm.get_parameter(Name=SSM_PARAM)["Parameter"]["Value"]
-
+    try:
+        response = ssm.get_parameter(Name=SSM_PARAM)
+        return response['Parameter']['Value']
+    except ssm.exceptions.ParameterNotFound:
+        return None
 
 def set_last_post_id(post_id):
     ssm.put_parameter(
         Name=SSM_PARAM,
-        Value=post_id,
-        Type="String",
+        Value=str(post_id),
+        Type='String',
         Overwrite=True
     )
+    print(f"Updated last_post_id to: {post_id}")
 
+def send_email(subject, body, link, published):
+    try:
+        ses.send_email(
+            Source=EMAIL_FROM,
+            Destination={'ToAddresses': [EMAIL_TO]},
+            Message={
+                'Subject': {'Data': f"New Pokémon GO Update: {subject}"},
+                'Body': {'Text': {'Data': f"{body}\nLink: {link}\nPublished: {published}"}}
+            }
+        )
+        print(f"Email sent for post: {subject}")
+    except ClientError as e:
+        print(f"Failed to send email: {e}")
 
-def send_email(title, summary, link, published):
-    ses.send_email(
-        Source=EMAIL_FROM,
-        Destination={"ToAddresses": [EMAIL_TO]},
-        Message={
-            "Subject": {"Data": f"New Pokémon GO Update: {title}"},
-            "Body": {
-                "Text": {
-                    "Data": f"{title}\n\n{summary}\n\nRead more: {link}\n\nPublished: {published}"
-                }
-            },
-        },
-    )
-
-
+# Lambda handler
 def lambda_handler(event, context):
+    print("Fetching RSS feed...")
     feed = feedparser.parse(RSS_URL)
-    last_post_id = get_last_post_id()
 
-    new_entries = []
-
-    for entry in feed.entries:
-        if entry.id > last_post_id:
-            new_entries.append(entry)
-
-    if not new_entries:
-        print("No new updates.")
+    if not feed.entries:
+        print("No entries found in feed.")
         return
 
-    # Process oldest first
-    new_entries.sort(key=lambda e: e.id)
+    last_post_id = get_last_post_id()
+    print(f"Last post ID: {last_post_id}")
 
-    for entry in new_entries:
-        send_email(
-            entry.title,
-            entry.summary,
-            entry.link,
-            entry.published
-        )
-        set_last_post_id(entry.id)
+    new_posts_found = False
 
-    print(f"Processed {len(new_entries)} new updates.")
+    for entry in feed.entries:
+        # Use id, or fallback to link or published timestamp
+        post_id = entry.get('id') or entry.get('link') or entry.get('published')
+        if post_id is None:
+            print("Skipping entry with no unique identifier.")
+            continue
+
+        # Send email if this post is new
+        if str(post_id) != str(last_post_id):
+            print(f"Sending email for post id: {post_id}")
+            send_email(entry.get('title'), entry.get('summary'), entry.get('link'), entry.get('published'))
+            set_last_post_id(post_id)
+            new_posts_found = True
+        else:
+            print(f"Already sent post id: {post_id}")
+
+    if not new_posts_found:
+        print("No new updates.")
